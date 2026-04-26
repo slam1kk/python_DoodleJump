@@ -1,101 +1,127 @@
 import tkinter as tk
 import random
-
-root = tk.Tk()
-root.title("Doodle Jump")
-
-canvas = tk.Canvas(root, width=400, height=600, bg="lightblue")
-canvas.pack()
+from PIL import Image, ImageTk
 
 #Global Variables
 player = None
-platforms = []
-springs = []
-difficulty_gap = 40
+platforms, springs = [], []
+difficultyGapX, difficultyGapY = 0, 0
+verticalVelocity, horizontalVelocity = 0, 0
 score = 0
-vertical_velocity = 0
-horizontal_velocity = 0
-
 keys = {"left": False, "right": False}
+isPaused, isRunning = False, False
+highestY = 0
 
-is_paused = False
-game_running = False
+#Window Settings
+root = tk.Tk()
 
-def create_platform(x, y):
-    width = max(30, 60 - (score // 5000) * 5)
-    plat = canvas.create_rectangle(x, y, x + width, y + 10, fill="green", outline="black")
+root.title("Python Doodle Jump")
+root.minsize(500, 800)
+root.attributes("-fullscreen", True)
+root.update()
+
+scrWidth, scrHeight = root.winfo_width(), root.winfo_height()
+
+canvas = tk.Canvas(root, width=scrWidth, height=scrHeight)
+canvas.pack(fill="both", expand=True)
+
+root.bind("<F11>", lambda event: root.attributes("-fullscreen", not root.attributes("-fullscreen")))
+
+#Graphics
+img_background = ImageTk.PhotoImage(Image.open("background.png").resize((scrWidth, scrHeight)))
+img_player = ImageTk.PhotoImage(Image.open("doodler.png").resize((42, 46)))
+img_defaultPlatform = ImageTk.PhotoImage(Image.open("default_platform.png").resize((76, 18)))
+#img_spring = ImageTk.PhotoImage(Image.open("spring.png").resize((40, 40)))
+
+canvas.create_image(0, 0, image=img_background, anchor="nw", tags="bg")
+
+#Functions & Procedures
+def create_platform(x, y, springChance):
+    platWidth = max(30, 60 - (score // 5000) * 5)
+    plat = canvas.create_image(x, y, image=img_defaultPlatform, anchor="nw", tags="gameObject")
     platforms.append(plat)
 
-    if random.random() < 0.1:
-        spring_pos = random.randint(0, width - 10)
-        spring = canvas.create_rectangle(x + spring_pos, y - 10, x + spring_pos + 10, y, fill="gray")
+    if springChance > 0.9:
+        spring_pos = random.randint(0, platWidth - 10)
+        spring = canvas.create_rectangle(x + spring_pos, y - 10, x + spring_pos + 10, y, fill="gray", tags="gameObject")
         springs.append(spring)
 
-def show_main_menu():
-    global game_running
-    game_running = False
-    canvas.delete("all")
-
-    canvas.create_text(200, 200, text="DOODLE JUMP", fill="black", font=("Arial", 40, "bold"))
+def show_mainMenu():
+    global isRunning
+    isRunning = False
+    root.minsize(500, 800)
+    root.maxsize(root.winfo_screenwidth(), root.winfo_screenheight())
+    canvas.delete("gameObject")
+    canvas.create_text(scrWidth / 2, scrHeight / 4, text="DOODLE JUMP", fill="black", font=("Arial", 40, "bold"), tags=("gameObject", "logo"))
     
     btn_start = tk.Button(root, text="Start Game", font=("Arial", 17), bg="lightgreen", command=start_game)
-    canvas.create_window(200, 300, window=btn_start)
+    canvas.create_window(scrWidth / 2, scrHeight / 4 + 150, window=btn_start, tags=("gameObject", "start"))
     btn_exit = tk.Button(root, text="Exit", font=("Arial", 14), bg="indianred1", command=root.quit)
-    canvas.create_window(200, 390, window=btn_exit)
+    canvas.create_window(scrWidth / 2, scrHeight / 4 + 240, window=btn_exit, tags=("gameObject", "exit"))
 
 def start_game():
-    global player, score, vertical_velocity, horizontal_velocity, platforms, springs, score_counter, game_running, is_paused
+    global player, score, verticalVelocity, horizontalVelocity, platforms, springs, scoreCounter, isRunning, isPaused, difficultyGapX, difficultyGapY, highestY
 
-    canvas.delete("all")
-    platforms = []
-    springs = []
+    canvas.delete("gameObject")
+    platforms, springs = [], []
     score = 0
-    vertical_velocity, horizontal_velocity = 0, 0
-    game_running = True
-    is_paused = False
+    verticalVelocity, horizontalVelocity = 0, 0
+    difficultyGapX, difficultyGapY = 500, 100
+    isRunning, isPaused = True, False
+    root.minsize(scrWidth, scrHeight)
+    root.maxsize(scrWidth, scrHeight)
+    
+    player = canvas.create_image(scrWidth / 2, scrHeight - 200, image=img_player, anchor="nw", tags="gameObject")
+    scoreCounter = canvas.create_text(10, 20, text="Score:", fill="black", font=("Arial", 15), anchor="w", tags="gameObject")
 
-    player = canvas.create_rectangle(185, 500, 215, 530, fill="lightgreen", outline="black")
-    score_counter = canvas.create_text(10, 20, text="Score: 0", fill="black", font=("Arial", 15), anchor="w")
+    create_platform(scrWidth / 2, scrHeight - 70, 0)
+    highestY = scrHeight - 40
+    currX = 0
+    while highestY > 0:
+        rightMostX = -200
+        lowestInLayerY = scrHeight
+        while rightMostX < scrWidth - 400:
+            currX = random.randint(rightMostX + 200, rightMostX + difficultyGapX)
+            currY = random.randint(highestY - difficultyGapY, highestY - 40)
+            create_platform(currX, currY, 0)
+            lowestInLayerY = min(lowestInLayerY, currY)
+            rightMostX = currX
+        highestY = lowestInLayerY
 
-    create_platform(180, 570)
-    for _ in range(10):
-        highest_y = min([canvas.coords(p)[1] for p in platforms])
-        create_platform(random.randint(0, 340), highest_y - random.randint(difficulty_gap - 15, difficulty_gap))
-    game_loop()
+    gameLoop()
 
-def show_pause_menu():
-    global game_running, is_paused
-    game_running = False
-    is_paused = True
+def show_pauseMenu():
+    global isRunning, isPaused
+    isRunning, isPaused = False, True
 
-    canvas.create_text(200, 200, text="Pause", fill="black", font=("Arial", 40), tags="pause")
-    canvas.create_text(200, 260, text=f"Current Score: {score}", fill="black", font=("Arial", 17), tags="pause")
+    canvas.create_text(scrWidth / 2, scrHeight / 3, text="Pause", fill="black", font=("Arial", 40), tags=("pauseMenu","gameObject", "pause"))
+    canvas.create_text(scrWidth / 2, scrHeight / 3 + 60, text=f"Current Score: {score}", fill="black", font=("Arial", 17), tags=("pauseMenu", "gameObject", "currScore"))
 
     btn_resume = tk.Button(root, text="Resume", font=("Arial", 17), bg="lightgreen", command=resume_game)
-    canvas.create_window(200, 340, window=btn_resume, tags="pause")
-    btn_main_menu = tk.Button(root, text="Main Menu", font=("Arial", 14), bg="indianred1", command=show_main_menu)
-    canvas.create_window(200, 390, window=btn_main_menu, tags="pause")
+    canvas.create_window(scrWidth / 2, scrHeight / 3 + 140, window=btn_resume, tags=("pauseMenu", "gameObject", "resume"))
+    btn_mainMenu = tk.Button(root, text="Main Menu", font=("Arial", 14), bg="indianred1", command=show_mainMenu)
+    canvas.create_window(scrWidth / 2, scrHeight / 3 + 210, window=btn_mainMenu, tags=("pauseMenu", "gameObject", "pauseMainMenu"))
 
 def resume_game():
-    global game_running, is_paused
-    canvas.delete("pause")
-    game_running = True
-    is_paused = False
+    global isRunning, isPaused
+    isRunning, isPaused = True, False
+    canvas.delete("pauseMenu")
+    gameLoop()
 
-    game_loop()
+def show_gameOver():
+    global isRunning
+    isRunning = False
+    root.minsize(500, 700)
+    root.maxsize(root.winfo_screenwidth(), root.winfo_screenheight())
+    canvas.delete("gameObject")
 
-def show_game_over():
-    global game_running
-    game_running = False
-    canvas.delete("all")
-
-    canvas.create_text(200, 200, text="GAME OVER", fill="red", font=("Arial", 30))
-    canvas.create_text(200, 260, text=f"Final Score: {score}", fill="black", font=("Arial", 20))
+    canvas.create_text(scrWidth / 2, scrHeight / 4, text="GAME OVER", fill="red", font=("Arial", 30), tags=("gameObject", "gameOver"))
+    canvas.create_text(scrWidth / 2, scrHeight / 4 + 60, text=f"Final Score: {score}", fill="black", font=("Arial", 20), tags=("gameObject", "finalScore"))
 
     btn_restart = tk.Button(root, text="Play Again", font=("Arial", 14), bg="lightgreen", command=start_game)
-    canvas.create_window(200, 330, window=btn_restart)
-    btn_main_menu = tk.Button(root, text="Main Menu", font=("Arial", 14), bg="indianred1", command=show_main_menu)
-    canvas.create_window(200, 390, window=btn_main_menu)
+    canvas.create_window(scrWidth / 2, scrHeight / 4 + 150, window=btn_restart, tags=("gameObject", "restart"))
+    btn_mainMenu = tk.Button(root, text="Main Menu", font=("Arial", 14), bg="indianred1", command=show_mainMenu)
+    canvas.create_window(scrWidth / 2, scrHeight / 4 + 200, window=btn_mainMenu, tags=("gameObject", "gameOverMainMenu"))
 
 def press_left(event): keys["left"] = True
 def release_left(event): keys["left"] = False
@@ -103,98 +129,129 @@ def press_right(event): keys["right"] = True
 def release_right(event): keys["right"] = False
 
 def toggle_pause(event):
-    if game_running: show_pause_menu()
-    elif is_paused: resume_game()
+    if isRunning: show_pauseMenu()
+    elif isPaused: resume_game()
 
+def on_resize(event):
+    global scrWidth, scrHeight
+    scrWidth, scrHeight = root.winfo_width(), root.winfo_height()
+    canvas.coords("logo", scrWidth / 2, scrHeight / 4)
+    canvas.coords("start", scrWidth / 2, scrHeight / 4 + 150)
+    canvas.coords("exit", scrWidth / 2, scrHeight / 4 + 240)
+
+    canvas.coords("pause", scrWidth / 2, scrHeight / 3)
+    canvas.coords("currScore", scrWidth / 2, scrHeight / 3 + 60)
+    canvas.coords("resume", scrWidth / 2, scrHeight / 3 + 140)
+    canvas.coords("pauseMainMenu", scrWidth / 2, scrHeight / 3 + 210)
+
+    canvas.coords("gameOver", scrWidth / 2, scrHeight / 4)
+    canvas.coords("finalScore", scrWidth / 2, scrHeight / 4 + 60)
+    canvas.coords("restart", scrWidth / 2, scrHeight / 4 + 150)
+    canvas.coords("gameOverMainMenu", scrWidth / 2, scrHeight / 4 + 200)
+
+root.bind("<Configure>", on_resize)
 root.bind("<KeyPress-Left>", press_left)
 root.bind("<KeyRelease-Left>", release_left)
 root.bind("<KeyPress-Right>", press_right)
 root.bind("<KeyRelease-Right>", release_right)
 root.bind("<Escape>", toggle_pause)
 
-def game_loop():
-    global vertical_velocity, horizontal_velocity, score, game_running, difficulty_gap
+def gameLoop():
+    global verticalVelocity, horizontalVelocity, score, isRunning, difficultyGapY, highestY
 
-    if not game_running: return
+    if not isRunning: return
 
-    p_pos = canvas.coords(player)
+    playerPos = canvas.coords(player)
+    playerPos.append(playerPos[0] + 40)
+    playerPos.append(playerPos[1] + 40)
 
-    if is_paused: show_pause_menu()
+    if isPaused: show_pauseMenu()
 
     #Player Movement
-    vertical_velocity += 0.5
-    canvas.move(player, horizontal_velocity, vertical_velocity)
+    verticalVelocity += 0.6
+    canvas.move(player, horizontalVelocity, verticalVelocity)
     
-    if keys["left"] and horizontal_velocity > -4:
-        horizontal_velocity -= 1
-    if keys["right"] and horizontal_velocity < 4:
-        horizontal_velocity += 1
+    if keys["left"] and horizontalVelocity > -5:
+        horizontalVelocity -= 1.2
+    if keys["right"] and horizontalVelocity < 5:
+        horizontalVelocity += 1.2
     if not (keys["left"] or keys["right"]):
-        horizontal_velocity *= 0.9
+        horizontalVelocity *= 0.9
 
 
     #Screen Borders
-    if p_pos[0] > 400: canvas.move(player, -400, 0)
-    if p_pos[2] < 0: canvas.move(player, 400, 0)
+    if playerPos[0] + 20 > scrWidth: canvas.move(player, -scrWidth, 0)
+    if playerPos[0] + 20 < 0: canvas.move(player, scrWidth, 0)
 
 
     #Screen Scroll
-    if p_pos[1] <= 300:
-        shift = 300 - p_pos[1]
+    if playerPos[1] <= scrHeight / 2:
+        shift = scrHeight / 2 - playerPos[1]
         canvas.move(player, 0, shift)
         for plat in platforms: canvas.move(plat, 0, shift)
         for spring in springs: canvas.move(spring, 0, shift)
 
         score += int(shift)
-        canvas.itemconfig(score_counter, text=f"Score: {score}")
+        highestY += int(shift)
+        canvas.itemconfig(scoreCounter, text=f"Score: {score}")
 
 
     #Generating
     for i, plat in enumerate(platforms):
-        plat_pos = canvas.coords(plat)
-        if plat_pos[1] > 600:
+        platPos = canvas.coords(plat)
+        if platPos[1] > scrHeight:
             canvas.delete(plat)
             platforms.pop(i)
 
-    difficulty_gap = min(150, 40 + (score // 2000) * 10)
-    highest_y = min([canvas.coords(p)[1] for p in platforms])
-
-    if highest_y > 0:
-        create_platform(random.randint(0, 340), highest_y - random.randint(difficulty_gap - 15, difficulty_gap))
-
-    for j, s in enumerate(springs):
-        s_pos = canvas.coords(s)
-        if s_pos[1] > 600:
+    for i, s in enumerate(springs):
+        springPos = canvas.coords(s)
+        if springPos[1] > scrHeight:
             canvas.delete(s)
-            springs.pop(j)
+            springs.pop(i)
+
+    difficultyGapY = min(190, 100 + (score // 2000) * 15)
+    difficultyGapX = min(1300, 500 + (score // 2000) * 50)
+
+    while highestY > 0:
+        rightMostX = -200
+        lowestInLayerY = scrHeight
+        while rightMostX < scrWidth - 80:
+            currX = random.randint(rightMostX + 200, rightMostX + difficultyGapX)
+            currY = random.randint(highestY - difficultyGapY, highestY - 40)
+            create_platform(currX, currY, random.random())
+            lowestInLayerY = min(lowestInLayerY, currY)
+            rightMostX = currX
+        highestY = lowestInLayerY
 
 
     #Spring Collision
-    if vertical_velocity > 0:
+    if verticalVelocity > 0:
         for s in springs:
-            s_pos = canvas.coords(s)
-            if (s_pos[0] > p_pos[0] and s_pos[0] < p_pos[2]) or (s_pos[2] > p_pos[0] and s_pos[2] < p_pos[2]):
-                if s_pos[1] - 5 - vertical_velocity <= p_pos[3] <= s_pos[1]:
-                    vertical_velocity = -25
+            springPos = canvas.coords(s)
+            if (springPos[0] > playerPos[0] and springPos[0] < playerPos[2]) or (springPos[2] > playerPos[0] and springPos[2] < playerPos[2]):
+                if springPos[1] - 5 - verticalVelocity <= playerPos[3] <= springPos[1]:
+                    verticalVelocity = -30
 
 
     #Platform Collision
-    if vertical_velocity > 0:
+    if verticalVelocity > 0:
         for plat in platforms:
-            plat_pos = canvas.coords(plat)
-            if (p_pos[0] > plat_pos[0] and p_pos[0] < plat_pos[2]) or (p_pos[2] > plat_pos[0] and p_pos[2] < plat_pos[2]):
-                if plat_pos[1] - 5 - vertical_velocity <= p_pos[3] <= plat_pos[1]:
-                    vertical_velocity = -15
+            platPos = canvas.coords(plat)
+            platPos.append(platPos[0] + 76)
+            platPos.append(platPos[1] + 18)
+            if (playerPos[0] > platPos[0] and playerPos[0] < platPos[2]) or (playerPos[2] > platPos[0] and playerPos[2] < platPos[2]):
+                if platPos[1] - 5 - verticalVelocity <= playerPos[3] <= platPos[1]:
+                    verticalVelocity = -20
 
 
     #Game Over
-    if p_pos[1] >= 600:
-        show_game_over()
+    if playerPos[1] >= scrHeight:
+        show_gameOver()
         return
     
 
-    canvas.tag_raise(score_counter)
-    root.after(15, game_loop)
+    canvas.tag_raise(scoreCounter)
+    root.after(15, gameLoop)
 
-show_main_menu()
+show_mainMenu()
 root.mainloop()
