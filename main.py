@@ -4,7 +4,7 @@ from PIL import Image, ImageTk
 
 #Global Variables
 player = None
-platforms, springs = [], []
+platforms, springs, bullets, enemies = [], [], [], []
 difficultyGapX, difficultyGapY = 0, 0
 verticalVelocity, horizontalVelocity = 0, 0
 score = 0
@@ -60,10 +60,10 @@ def show_mainMenu():
     canvas.create_window(scrWidth / 2, scrHeight / 4 + 240, window=btn_exit, tags=("gameObject", "exit"))
 
 def start_game():
-    global player, score, verticalVelocity, horizontalVelocity, platforms, springs, scoreCounter, isRunning, isPaused, difficultyGapX, difficultyGapY, highestY
+    global player, score, verticalVelocity, horizontalVelocity, platforms, springs, bullets, enemies, scoreCounter, isRunning, isPaused, difficultyGapX, difficultyGapY, highestY
 
     canvas.delete("gameObject")
-    platforms, springs = [], []
+    platforms, springs, bullets, enemies = [], [], [], []
     score = 0
     verticalVelocity, horizontalVelocity = 0, 0
     difficultyGapX, difficultyGapY = 500, 100
@@ -128,6 +128,15 @@ def release_left(event): keys["left"] = False
 def press_right(event): keys["right"] = True
 def release_right(event): keys["right"] = False
 
+def shoot(event):
+    global isRunning, isPaused
+    if not isRunning or isPaused: return
+    playerPos = canvas.coords(player)
+    px, py = playerPos[0], playerPos[1]
+
+    bullet = canvas.create_oval(px + 15, py - 14, px + 25, py - 4, fill="gray", tags="gameObject")
+    bullets.append(bullet)
+
 def toggle_pause(event):
     if isRunning: show_pauseMenu()
     elif isPaused: resume_game()
@@ -155,6 +164,7 @@ root.bind("<KeyRelease-Left>", release_left)
 root.bind("<KeyPress-Right>", press_right)
 root.bind("<KeyRelease-Right>", release_right)
 root.bind("<Escape>", toggle_pause)
+root.bind("<space>", shoot)
 
 def gameLoop():
     global verticalVelocity, horizontalVelocity, score, isRunning, difficultyGapY, highestY
@@ -172,12 +182,20 @@ def gameLoop():
     canvas.move(player, horizontalVelocity, verticalVelocity)
     
     if keys["left"] and horizontalVelocity > -5:
-        horizontalVelocity -= 1.2
+        horizontalVelocity -= 1.4
     if keys["right"] and horizontalVelocity < 5:
-        horizontalVelocity += 1.2
+        horizontalVelocity += 1.4
     if not (keys["left"] or keys["right"]):
-        horizontalVelocity *= 0.9
+        horizontalVelocity *= 0.87
 
+
+    #Bullet Movement
+    for i, bullet in enumerate(bullets):
+        canvas.move(bullet, 0, -20)
+        bulletPos = canvas.coords(bullet)
+        if bulletPos [1] < 0:
+            canvas.delete(bullet)
+            bullets.pop(i)
 
     #Screen Borders
     if playerPos[0] + 20 > scrWidth: canvas.move(player, -scrWidth, 0)
@@ -188,10 +206,9 @@ def gameLoop():
     if playerPos[1] <= scrHeight / 2:
         shift = scrHeight / 2 - playerPos[1]
         canvas.move(player, 0, shift)
-        for plat in platforms: canvas.move(plat, 0, shift)
-        for spring in springs: canvas.move(spring, 0, shift)
+        for object in platforms + springs + bullets + enemies: canvas.move(object, 0, shift)
 
-        score += int(shift)
+        score += int(shift / 2)
         highestY += int(shift)
         canvas.itemconfig(scoreCounter, text=f"Score: {score}")
 
@@ -203,14 +220,14 @@ def gameLoop():
             canvas.delete(plat)
             platforms.pop(i)
 
-    for i, s in enumerate(springs):
-        springPos = canvas.coords(s)
-        if springPos[1] > scrHeight:
-            canvas.delete(s)
+    for i, spr in enumerate(springs):
+        sprPos = canvas.coords(spr)
+        if sprPos[1] > scrHeight:
+            canvas.delete(spr)
             springs.pop(i)
 
     difficultyGapY = min(190, 100 + (score // 2000) * 15)
-    difficultyGapX = min(1300, 500 + (score // 2000) * 50)
+    difficultyGapX = min(1000, 500 + (score // 2000) * 50)
 
     while highestY > 0:
         rightMostX = -200
@@ -227,10 +244,10 @@ def gameLoop():
     #Spring Collision
     if verticalVelocity > 0:
         for s in springs:
-            springPos = canvas.coords(s)
-            if (springPos[0] > playerPos[0] and springPos[0] < playerPos[2]) or (springPos[2] > playerPos[0] and springPos[2] < playerPos[2]):
-                if springPos[1] - 5 - verticalVelocity <= playerPos[3] <= springPos[1]:
-                    verticalVelocity = -30
+            sprPos = canvas.coords(s)
+            if (sprPos[0] > playerPos[0] and sprPos[0] < playerPos[2]) or (sprPos[2] > playerPos[0] and sprPos[2] < playerPos[2]):
+                if sprPos[1] - 5 - verticalVelocity <= playerPos[3] <= sprPos[1]:
+                    verticalVelocity = -33
 
 
     #Platform Collision
