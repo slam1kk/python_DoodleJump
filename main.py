@@ -9,12 +9,10 @@ import mechanics
 #Global Variables
 player = None
 platforms, springs, bullets, enemies = [], [], [], []
-difficultyGapX, difficultyGapY = 0, 0
 verticalVelocity, horizontalVelocity = 0, 0
 score = 0
 keys = {"left": False, "right": False}
 isPaused, isRunning = False, False
-highestY = 0
 highscore = storage.load_highscore()  
 
 #Window Settings
@@ -57,33 +55,18 @@ def show_mainMenu():
     canvas.create_window(scrWidth / 2, scrHeight / 4 + 240, window=btn_exit, tags=("gameObject", "exit"))
 
 def start_game():
-    global player, score, verticalVelocity, horizontalVelocity, platforms, springs, bullets, enemies, scoreCounter, isRunning, isPaused, difficultyGapX, difficultyGapY, highestY
+    global player, score, verticalVelocity, horizontalVelocity, platforms, springs, bullets, enemies, scoreCounter, isRunning, isPaused
 
     canvas.delete("gameObject")
     platforms, springs, bullets, enemies = [], [], [], []
     score = 0
     verticalVelocity, horizontalVelocity = 0, 0
-    difficultyGapX, difficultyGapY = config.MIN_DIFFGAP_X, config.MIN_DIFFGAP_Y
     isRunning, isPaused = True, False
     root.minsize(scrWidth, scrHeight)
     root.maxsize(scrWidth, scrHeight)
     
     player = canvas.create_image(scrWidth / 2, scrHeight - 200, image=img_player, anchor="nw", tags="gameObject")
     scoreCounter = canvas.create_text(10, 20, text="Score:", fill="black", font=("Arial", 15), anchor="w", tags="gameObject")
-
-    mechanics.create_platform(canvas, scrWidth / 2, scrHeight - 70, img_defaultPlatform, img_spring, platforms, springs, 1)
-    highestY = scrHeight - 40
-    currX = 0
-    while highestY > 0:
-        rightMostX = -200
-        lowestInLayerY = scrHeight
-        while rightMostX < scrWidth - 400:
-            currX = random.randint(rightMostX + 200, rightMostX + difficultyGapX)
-            currY = random.randint(highestY - difficultyGapY, highestY - 40)
-            mechanics.create_platform(canvas, currX, currY, img_defaultPlatform, img_spring, platforms, springs, 1)
-            lowestInLayerY = min(lowestInLayerY, currY)
-            rightMostX = currX
-        highestY = lowestInLayerY
 
     gameLoop()
 
@@ -169,14 +152,9 @@ root.bind("<Escape>", toggle_pause)
 root.bind("<space>", shoot)
 
 def gameLoop():
-    global verticalVelocity, horizontalVelocity, score, isRunning, difficultyGapY, highestY
+    global verticalVelocity, horizontalVelocity, score, isRunning
 
     if not isRunning: return
-
-    playerPos = canvas.coords(player)
-    playerPos.append(playerPos[0] + 40)
-    playerPos.append(playerPos[1] + 40)
-
     if isPaused: show_pauseMenu()
 
     #Player Movement
@@ -190,7 +168,6 @@ def gameLoop():
     if not (keys["left"] or keys["right"]):
         horizontalVelocity *= config.SLOWDOWN
 
-
     #Bullet Movement
     for i, bullet in enumerate(bullets):
         canvas.move(bullet, 0, config.BULLET_SPEED)
@@ -200,51 +177,30 @@ def gameLoop():
             bullets.pop(i)
 
     #Screen Borders
+    playerPos = canvas.coords(player)
+    playerPos.append(playerPos[0] + 40)
+    playerPos.append(playerPos[1] + 40)
+
     if playerPos[0] + 20 > scrWidth: canvas.move(player, -scrWidth, 0)
     if playerPos[0] + 20 < 0: canvas.move(player, scrWidth, 0)
-
 
     #Screen Scroll
     if playerPos[1] <= scrHeight / 2:
         shift = scrHeight / 2 - playerPos[1]
         canvas.move(player, 0, shift)
-        for object in platforms + springs + bullets + enemies: canvas.move(object, 0, shift)
+        mechanics.maxHeight += int(shift)
+        for object in platforms + springs + bullets + [i[0] for i in enemies]: 
+            canvas.move(object, 0, shift)
 
         score += int(shift / 2)
-        highestY += int(shift)
         canvas.itemconfig(scoreCounter, text=f"Score: {score}")
 
-
     #Generating
-    for i, plat in enumerate(platforms):
-        platPos = canvas.coords(plat)
-        if platPos[1] > scrHeight:
-            canvas.delete(plat)
-            platforms.pop(i)
-
-    for i, spr in enumerate(springs):
-        sprPos = canvas.coords(spr)
-        if sprPos[1] > scrHeight:
-            canvas.delete(spr)
-            springs.pop(i)
-
-    difficultyGapY = min(config.MAX_DIFFGAP_Y, config.MIN_DIFFGAP_Y + (score // 2000) * 15)
-    difficultyGapX = min(config.MAX_DIFFGAP_X, config.MIN_DIFFGAP_X + (score // 2000) * 50)
-
-    while highestY > 0:
-        rightMostX = -200
-        lowestInLayerY = scrHeight
-        while rightMostX < scrWidth - 80:
-            currX = random.randint(rightMostX + 200, rightMostX + difficultyGapX)
-            currY = random.randint(highestY - difficultyGapY, highestY - 40)
-            mechanics.create_platform(canvas, currX, currY, img_defaultPlatform, img_spring, platforms, springs, random.random())
-            lowestInLayerY = min(lowestInLayerY, currY)
-            rightMostX = currX
-        highestY = lowestInLayerY
+    mechanics.generating(canvas, img_defaultPlatform, img_spring, img_enemy, platforms, springs, enemies, scrWidth, scrHeight, score)
 
     verticalVelocity = mechanics.check_collisions(canvas, platforms, springs, verticalVelocity, playerPos)
 
-    isDead = mechanics.update_enemies(canvas, enemies, bullets, playerPos, scrWidth, scrHeight, show_gameOver, verticalVelocity)
+    isDead, verticalVelocity = mechanics.update_enemies(canvas, enemies, bullets, playerPos, scrWidth, scrHeight, show_gameOver, verticalVelocity)
 
     #Game Over
     if isDead: return
