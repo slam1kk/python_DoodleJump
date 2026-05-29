@@ -1,12 +1,11 @@
 import tkinter as tk
-import random
 from PIL import Image, ImageTk
 
 import config
 import storage
 import mechanics
 
-#Global Variables
+# Global Variables
 player = None
 platforms, springs, bullets, enemies = [], [], [], []
 verticalVelocity, horizontalVelocity = 0, 0
@@ -15,7 +14,7 @@ keys = {"left": False, "right": False}
 isPaused, isRunning = False, False
 highscore = storage.load_highscore()  
 
-#Window Settings
+# Window Settings
 root = tk.Tk()
 
 root.title("Python Doodle Jump")
@@ -30,23 +29,24 @@ canvas.pack(fill="both", expand=True)
 
 root.bind("<F11>", lambda event: root.attributes("-fullscreen", not root.attributes("-fullscreen")))
 
-#Graphics
+# Graphics
 img_background = ImageTk.PhotoImage(Image.open("images/background.png").resize((scrWidth, scrHeight)))
 img_player = ImageTk.PhotoImage(Image.open("images/doodler.png").resize((42, 46)))
-img_enemy = ImageTk.PhotoImage(Image.open("images/enemy.png").resize((62, 60)))
+img_enemyRight = ImageTk.PhotoImage(Image.open("images/enemy.png").resize((62, 60)))
+img_enemyLeft = ImageTk.PhotoImage(Image.open("images/enemy.png").resize((62, 60)).transpose(Image.FLIP_LEFT_RIGHT))
 img_defaultPlatform = ImageTk.PhotoImage(Image.open("images/default_platform.png").resize((76, 18)))
 img_spring = ImageTk.PhotoImage(Image.open("images/spring.png").resize((18, 18)))
 
 canvas.create_image(0, 0, image=img_background, anchor="nw", tags="bg")
 
-#Functions & Procedures
+# Menus
 def show_mainMenu():
-    global isRunning
-    isRunning = False
+    global isRunning, isPaused
+    isRunning, isPaused = False, False
     root.minsize(config.MIN_WIDTH, config.MIN_HEIGHT)
     root.maxsize(root.winfo_screenwidth(), root.winfo_screenheight())
     canvas.delete("gameObject")
-    img_logo = ImageTk.PhotoImage(Image.open("images/logo.png").resize((605, 210)))
+    img_logo = ImageTk.PhotoImage(Image.open("images/logo.png").resize((484, 168)))
     canvas.create_image(scrWidth / 2, scrHeight / 4, image=img_logo, tags=("gameObject", "logo"))
     
     btn_start = tk.Button(root, text="Start Game", font=("Arial", 17), bg="lightgreen", command=start_game)
@@ -89,8 +89,8 @@ def resume_game():
     gameLoop()
 
 def show_gameOver():
-    global isRunning
-    isRunning = False
+    global isRunning, isPaused
+    isRunning, isPaused = False, False
 
     storage.save_highscore(score)
     highscore = storage.load_highscore()
@@ -107,6 +107,7 @@ def show_gameOver():
     btn_mainMenu = tk.Button(root, text="Main Menu", font=("Arial", 14), bg="indianred1", command=show_mainMenu)
     canvas.create_window(scrWidth / 2, scrHeight / 4 + 240, window=btn_mainMenu, tags=("gameObject", "gameOverMainMenu"))
 
+# Controls
 def press_left(event): keys["left"] = True
 def release_left(event): keys["left"] = False
 def press_right(event): keys["right"] = True
@@ -151,6 +152,7 @@ root.bind("<KeyRelease-Right>", release_right)
 root.bind("<Escape>", toggle_pause)
 root.bind("<space>", shoot)
 
+# Main Procedure
 def gameLoop():
     global verticalVelocity, horizontalVelocity, score, isRunning
 
@@ -196,11 +198,11 @@ def gameLoop():
         canvas.itemconfig(scoreCounter, text=f"Score: {score}")
 
     #Generating
-    mechanics.generating(canvas, img_defaultPlatform, img_spring, img_enemy, platforms, springs, enemies, scrWidth, scrHeight, score)
+    mechanics.generating(canvas, img_defaultPlatform, img_spring, img_enemyRight, platforms, springs, enemies, scrWidth, scrHeight, score)
 
     verticalVelocity = mechanics.check_collisions(canvas, platforms, springs, verticalVelocity, playerPos)
 
-    isDead, verticalVelocity = mechanics.update_enemies(canvas, enemies, bullets, playerPos, scrWidth, scrHeight, show_gameOver, verticalVelocity)
+    isDead, verticalVelocity = mechanics.update_enemies(canvas, enemies, img_enemyRight, img_enemyLeft, bullets, playerPos, scrWidth, scrHeight, show_gameOver, verticalVelocity)
 
     #Game Over
     if isDead: return
