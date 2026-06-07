@@ -1,9 +1,17 @@
 import random
 import config
 import math
+import winsound
 
 lastLayer, buildingLayer = [], []
 maxHeight = 0
+
+# Sounds
+def play_sfx(file_name):
+    try:
+        winsound.PlaySound(file_name, winsound.SND_ASYNC)
+    except:
+        return
 
 def generating(canvas, img_defPl, img_shattPl, img_movPl, img_spr, img_enR, plats, sprs, ens, scrWid, scrHeight, score):
     global lastLayer, buildingLayer, maxHeight
@@ -111,7 +119,6 @@ def create_platform(canvas, x, y, img_defPl, img_shattPl, img_movPl, img_spr, im
         enChance = min(config.MAX_ENEMY_CHANCE, config.MIN_ENEMY_CHANCE + (score - 3500) // 1000 * 0.01)
         if random.random() < enChance:
             create_enemy(canvas, y, img_en, ens, scrWid)
-
     return plat
 
 def update_movingPlatforms(canvas, plats, scrWid):
@@ -126,7 +133,7 @@ def update_movingPlatforms(canvas, plats, scrWid):
             elif pos >= scrWid - 92 and speed > 0:
                 plats[i][2] = -speed
 
-def check_collisions(canvas, plats, sprs, verticalVelocity, playerPos):
+def check_collisions(canvas, plats, sprs, verticalVelocity, playerPos, player, img_trigSpr):
     if verticalVelocity > 0:
         for i, platData in enumerate(plats):
             platId, platType, speed = platData
@@ -135,9 +142,12 @@ def check_collisions(canvas, plats, sprs, verticalVelocity, playerPos):
             platPos.append(platPos[1] + 18)
             if (playerPos[0] > platPos[0] and playerPos[0] < platPos[2]) or (playerPos[2] > platPos[0] and playerPos[2] < platPos[2]):
                 if platPos[1] - 5 - verticalVelocity <= playerPos[3] <= platPos[1]:
+                    canvas.move(player, 0, platPos[1] - playerPos[3])
+                    play_sfx("sounds/bounce.wav")
                     if platType == "shattered":
                         canvas.delete(platId)
                         plats.pop(i)
+                        play_sfx("sounds/crunch.wav")
                     return config.JUMP_IMPULSE
         
         for s in sprs:
@@ -146,6 +156,10 @@ def check_collisions(canvas, plats, sprs, verticalVelocity, playerPos):
             sprPos.append(sprPos[0] + 18)
             if (sprPos[0] > playerPos[0] and sprPos[0] < playerPos[2]) or (sprPos[2] > playerPos[0] and sprPos[2] < playerPos[2]):
                 if sprPos[1] - 5 - verticalVelocity <= playerPos[3] <= sprPos[1]:
+                    canvas.itemconfig(s, image=img_trigSpr)
+                    canvas.move(s, 0, -18)
+                    canvas.move(player, 0, sprPos[1] - playerPos[3])
+                    play_sfx("sounds/spring.wav")
                     return config.SPRING_IMPULSE
     
     return verticalVelocity
@@ -184,6 +198,7 @@ def update_enemies(canvas, enemies, img_enemyRight, img_enemyLeft, bullets, play
             if bPos:
                 if bPos[1] - 20 <= enPos[3] <= bPos[1] - 5:
                     if (enPos[0] - 20 < bPos[0] < enPos[2] + 20) or (enPos[0] -20 < bPos[2] < enPos[2] + 20):
+                        play_sfx("sounds/enemy.wav")
                         canvas.delete(bullet)
                         bullets.pop(b_idx)
                         canvas.delete(e)
@@ -193,6 +208,7 @@ def update_enemies(canvas, enemies, img_enemyRight, img_enemyLeft, bullets, play
         xCollision = (enPos[0] < playerPos[0] < enPos[2]) or (enPos [0] < playerPos[2] < enPos[2])
         if xCollision:
             if verticalVelocity > 0 and (enPos[1] - 5 - verticalVelocity <= playerPos[3] <= enPos[1]):
+                play_sfx("sounds/enemy.wav")
                 canvas.delete(e)
                 enemies.pop(i)
                 return False, config.JUMP_IMPULSE    

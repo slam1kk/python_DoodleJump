@@ -7,6 +7,7 @@ import mechanics
 
 # Global Variables
 player = None
+anim_timer = 0
 platforms, springs, bullets, enemies = [], [], [], []
 verticalVelocity, horizontalVelocity = 0, 0
 score = 0
@@ -35,12 +36,14 @@ img_gameOver = ImageTk.PhotoImage(Image.open("images/game_over.png").resize((244
 img_pause = ImageTk.PhotoImage(Image.open("images/pause.png").resize((352, 84)))
 img_background = ImageTk.PhotoImage(Image.open("images/background.png").resize((scrWidth, scrHeight)))
 img_player = ImageTk.PhotoImage(Image.open("images/doodler.png").resize((42, 46)))
+img_bouncedPlayer = ImageTk.PhotoImage(Image.open("images/bounced_doodler.png").resize((42, 40)))
 img_enemyRight = ImageTk.PhotoImage(Image.open("images/enemy.png").resize((62, 60)))
 img_enemyLeft = ImageTk.PhotoImage(Image.open("images/enemy.png").resize((62, 60)).transpose(Image.FLIP_LEFT_RIGHT))
 img_defaultPlatform = ImageTk.PhotoImage(Image.open("images/default_platform.png").resize((76, 18)))
 img_shatteredPlatform = ImageTk.PhotoImage(Image.open("images/shattered_platform.png").resize((76, 18)))
 img_movingPlatform = ImageTk.PhotoImage(Image.open("images/moving_platform.png").resize((92, 18)))
 img_spring = ImageTk.PhotoImage(Image.open("images/spring.png").resize((18, 18)))
+img_triggeredSpring = ImageTk.PhotoImage(Image.open("images/triggered_spring.png").resize((18, 36)))
 
 canvas.create_image(0, 0, image=img_background, anchor="nw", tags="bg")
 
@@ -98,6 +101,7 @@ def show_gameOver():
     global isRunning, isPaused
     isRunning, isPaused = False, False
 
+    mechanics.play_sfx("sounds/gameover.wav")
     storage.save_highscore(score)
     highscore = storage.load_highscore()
     root.minsize(config.MIN_WIDTH, config.MIN_HEIGHT)
@@ -127,6 +131,7 @@ def shoot(event):
 
     bullet = canvas.create_oval(px + 15, py - 14, px + 25, py - 4, fill="gray", tags="gameObject")
     bullets.append(bullet)
+    mechanics.play_sfx("sounds/shot")
 
 def toggle_pause(event):
     if isRunning: show_pauseMenu()
@@ -160,7 +165,7 @@ root.bind("<space>", shoot)
 
 # Main Procedure
 def gameLoop():
-    global verticalVelocity, horizontalVelocity, score, isRunning
+    global verticalVelocity, horizontalVelocity, score, isRunning, anim_timer
 
     if not isRunning: return
     if isPaused: show_pauseMenu()
@@ -175,6 +180,15 @@ def gameLoop():
         horizontalVelocity += config.HOR_SPEED
     if not (keys["left"] or keys["right"]):
         horizontalVelocity *= config.SLOWDOWN
+
+    if verticalVelocity < -20 and anim_timer == 0:
+        canvas.itemconfig(player, image=img_bouncedPlayer)
+        anim_timer = 25
+    
+    if anim_timer > 0:
+        anim_timer -= 1
+        if anim_timer == 0:
+            canvas.itemconfig(player, image=img_player)
 
     #Bullet Movement
     for i, bullet in enumerate(bullets):
@@ -206,7 +220,7 @@ def gameLoop():
     #Generating
     mechanics.generating(canvas, img_defaultPlatform, img_shatteredPlatform, img_movingPlatform, img_spring, img_enemyRight, platforms, springs, enemies, scrWidth, scrHeight, score)
     mechanics.update_movingPlatforms(canvas, platforms, scrWidth)
-    verticalVelocity = mechanics.check_collisions(canvas, platforms, springs, verticalVelocity, playerPos)
+    verticalVelocity = mechanics.check_collisions(canvas, platforms, springs, verticalVelocity, playerPos,player, img_triggeredSpring)
     isDead, verticalVelocity = mechanics.update_enemies(canvas, enemies, img_enemyRight, img_enemyLeft, bullets, playerPos, scrWidth, scrHeight, show_gameOver, verticalVelocity)
 
     #Game Over
